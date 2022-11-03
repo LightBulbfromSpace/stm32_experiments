@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <utils.h>
 #include <stm32f10x.h>
+#include <stdbool.h>
 
 #define min(a,b) ((a) < (b) ? (a) : (b))
 
@@ -25,7 +26,7 @@ int __attribute((noreturn)) main(void) {
     GPIOC->ODR |= GPIO_ODR_ODR15; //enable PC15 Pull-up (for UP)
 
     GPIOA->CRL = GPIOA->CRL & ~(GPIO_CRL_CNF0 | GPIO_CRL_MODE0) | GPIO_CRL_MODE0_1;
-    GPIOA->ODR |= GPIO_ODR_ODR0; //enable PC14 Pull-up (for DOWN)
+    GPIOA->ODR |= GPIO_ODR_ODR0; //enable PA0 Pull-up (for DOWN)
 
 	uint32_t ledPeriod = 1000000;
 	uint32_t btnPeriod = 10000;
@@ -40,10 +41,10 @@ int __attribute((noreturn)) main(void) {
 		btnPhase -= tau;
         if (btnPhase == 0) {
             if (GPIOC->IDR & (1 << 15U)) {
-                ledPeriod += 1000;
+                ledPeriod += 2000;
             }
             if (GPIOA->IDR & 1) {
-                ledPeriod -= 1000;
+                ledPeriod -= 2000;
             }
 			btnPhase = btnPeriod;
 			_Bool btnNewState = !(GPIOC->IDR & GPIO_IDR_IDR14);
@@ -62,7 +63,7 @@ int __attribute((noreturn)) main(void) {
 		}
     }
 	#endif
-
+	#if 0
 	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
 	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
 	RCC->APB2ENR |= RCC_APB2ENR_IOPCEN;
@@ -70,13 +71,12 @@ int __attribute((noreturn)) main(void) {
 	RCC->APB2RSTR |= RCC_APB1RSTR_TIM2RST;  // set periphery to default
 	RCC->APB2RSTR &= ~RCC_APB1RSTR_TIM2RST; // turn off reset register
 
-	GPIOC->CRH &= ~(GPIO_CRH_CNF13 | GPIO_CRH_MODE13); //clear cnf bits
-	GPIOC->CRH |= GPIO_CRH_MODE13_0;
+	GPIOA->CRL = GPIOA->CRL & ~(GPIO_CRL_CNF7 | GPIO_CRL_MODE7) | GPIO_CRL_MODE7_0; //LED pin
 
-	GPIOC->CRH = GPIOC->CRH & ~(GPIO_CRH_CNF14 | GPIO_CRH_MODE14) | GPIO_CRH_CNF14_1;
+	GPIOC->CRH = GPIOC->CRH & ~(GPIO_CRH_CNF14 | GPIO_CRH_MODE14) | GPIO_CRH_MODE14_1;
     GPIOC->ODR |= GPIO_ODR_ODR14; //enable PC14 Pull-up (for MID)
 
-	GPIOC->CRH = GPIOC->CRH & ~(GPIO_CRH_CNF15 | GPIO_CRH_MODE15) | GPIO_CRH_CNF15_1;
+	GPIOC->CRH = GPIOC->CRH & ~(GPIO_CRH_CNF15 | GPIO_CRH_MODE15) | GPIO_CRH_MODE15_1;
     GPIOC->ODR |= GPIO_ODR_ODR15; //enable PC15 Pull-up (for UP)
 
 	GPIOA->CRL = GPIOA->CRL & ~(GPIO_CRL_CNF0 | GPIO_CRL_MODE0) | GPIO_CRL_MODE0_1;
@@ -88,25 +88,75 @@ int __attribute((noreturn)) main(void) {
 	TIM2->DIER = TIM_DIER_UIE;				// update interrupt enable 
 	NVIC_ClearPendingIRQ(TIM2_IRQn);
 	NVIC_EnableIRQ(TIM2_IRQn);
-	TIM2->CR1 |= TIM_CR1_CEN;
+	TIM2->CR1 &= ~TIM_CR1_ARPE;
 
-	_Bool btn_prev_state = 0;
+	TIM2->CR1 |= TIM_CR1_CEN;
+	
+
+	bool tim2_turned_on = true;
+	bool btn_prev_state = false;
 	while(1) {
-		// if (GPIOC->IDR & (1 << 15U)) {
-        //         TIM2->ARR += 100;
-        // }
-		//  if (GPIOA->IDR & 1) {
-        //         TIM2->ARR -= 100;
-		// }
-		_Bool btn_state = !(GPIOC->IDR & (1 << 14U));
+		if (!(GPIOC->IDR & (1 << 15U))) {
+				//TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
+                TIM2->PSC += 500;
+				//TIM2->CR1 |= TIM_CR1_CEN;	//start
+        }
+		 if (!(GPIOA->IDR & 1)) {
+				//TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
+                TIM2->PSC -= 500;
+				//TIM2->CR1 |= TIM_CR1_CEN;	//start
+		}
+		bool btn_state = !(GPIOC->IDR & (1 << 14U));
 		if (btn_state && !btn_prev_state) {
-			TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
-		} else {
-			TIM2->CR1 |= TIM_CR1_CEN;	//start
+			if (tim2_turned_on) {
+				TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
+			} else {
+				TIM2->CR1 |= TIM_CR1_CEN;	//start
+			}
+			tim2_turned_on = !tim2_turned_on;
 		}
 		btn_prev_state = btn_state;
 		delay_us(10000); // 10ms
 	}
+	#endif
+	#if 1
+
+	typedef struct 
+	{
+		uint32_t GPIOx_ODR;
+		uint32_t pin_num
+	} LED_pin;
+	
+	LED_pin LED_pins[] = {{GPIOA->ODR, GPIO_ODR_ODR5}, {GPIOB->ODR, GPIO_ODR_ODR0}, {GPIOB->ODR, GPIO_ODR_ODR10}}; 
+
+	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
+	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
+	RCC->APB2ENR |= RCC_APB2ENR_IOPBEN;
+
+	GPIOA->CRL = GPIOA->CRL & ~(GPIO_CRL_CNF5 | GPIO_CRL_MODE5) | GPIO_CRL_MODE5_0;
+	LED_pins[0].GPIOx_ODR &= ~LED_pins[0].pin_num;
+	GPIOB->CRL = GPIOB->CRL & ~(GPIO_CRL_CNF0 | GPIO_CRL_MODE0) | GPIO_CRL_MODE0_0;
+	GPIOB->CRH = GPIOB->CRH & ~(GPIO_CRH_CNF10 | GPIO_CRH_MODE10) | GPIO_CRH_MODE10_0;
+
+	GPIOA->CRL = GPIOA->CRL & ~(GPIO_CRL_CNF0 | GPIO_CRL_MODE0) | GPIO_CRL_MODE0_1;
+    GPIOA->ODR |= GPIO_ODR_ODR0; //enable PA0 Pull-up (for UP)
+
+	uint8_t active_led = 0;
+	uint8_t i = 0;
+    while (1) {
+	    // if (!(GPIOA->IDR & 1)) {
+		// 	LED_pins[i].GPIOx_ODR &= ~LED_pins[i].pin_num;
+		// 	i = (i++) % 3;
+		// 	LED_pins[i].GPIOx_ODR |= LED_pins[i].pin_num;
+		// 	delay(1000);
+        // }
+		//  if (!(GPIOA->IDR & (1<<14U))) {
+		// 	GPIOB->ODR &= ~active_led;
+		// 	active_led -= 5;
+		// 	GPIOB->ODR |= active_led % 10;
+		// }
+    }
+	#endif
 }
 
 void TIM2_IRQHandler(void)
