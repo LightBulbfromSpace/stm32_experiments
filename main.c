@@ -63,7 +63,7 @@ int __attribute((noreturn)) main(void) {
 		}
     }
 	#endif
-	#if 0
+	#if 1
 	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
 	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
 	RCC->APB2ENR |= RCC_APB2ENR_IOPCEN;
@@ -71,7 +71,7 @@ int __attribute((noreturn)) main(void) {
 	RCC->APB2RSTR |= RCC_APB1RSTR_TIM2RST;  // set periphery to default
 	RCC->APB2RSTR &= ~RCC_APB1RSTR_TIM2RST; // turn off reset register
 
-	GPIOA->CRL = GPIOA->CRL & ~(GPIO_CRL_CNF7 | GPIO_CRL_MODE7) | GPIO_CRL_MODE7_0; //LED pin
+	GPIOA->CRH = GPIOA->CRH & ~(GPIO_CRH_CNF13 | GPIO_CRH_MODE13) | GPIO_CRH_MODE13_0; //LED pin
 
 	GPIOC->CRH = GPIOC->CRH & ~(GPIO_CRH_CNF14 | GPIO_CRH_MODE14) | GPIO_CRH_MODE14_1;
     GPIOC->ODR |= GPIO_ODR_ODR14; //enable PC14 Pull-up (for MID)
@@ -84,57 +84,53 @@ int __attribute((noreturn)) main(void) {
 
 	RCC->APB1ENR = RCC_APB1ENR_TIM2EN;
 	TIM2->PSC = 35999;						// tick of timer is one millisecond
-	TIM2->ARR = 1000;						// 
+	TIM2->ARR = 100;						// 
 	TIM2->DIER = TIM_DIER_UIE;				// update interrupt enable 
 	NVIC_ClearPendingIRQ(TIM2_IRQn);
 	NVIC_EnableIRQ(TIM2_IRQn);
-	TIM2->CR1 &= ~TIM_CR1_ARPE;
+	//TIM2->CR1 &= ~TIM_CR1_ARPE;
 
 	TIM2->CR1 |= TIM_CR1_CEN;
 	
-
-	bool tim2_turned_on = true;
 	bool btn_prev_state = false;
 	while(1) {
-		if (!(GPIOC->IDR & (1 << 15U))) {
-				//TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
-                TIM2->PSC += 500;
-				//TIM2->CR1 |= TIM_CR1_CEN;	//start
-        }
-		 if (!(GPIOA->IDR & 1)) {
-				//TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
-                TIM2->PSC -= 500;
-				//TIM2->CR1 |= TIM_CR1_CEN;	//start
-		}
-		bool btn_state = !(GPIOC->IDR & (1 << 14U));
+		// if (!(GPIOC->IDR & (1 << 15U))) {
+		// 		//TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
+        //         TIM2->PSC += 500;
+		// 		//TIM2->CR1 |= TIM_CR1_CEN;	//start
+        // }
+		//  if (!(GPIOA->IDR & 1)) {
+		// 		//TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
+        //         TIM2->PSC -= 500;
+		// 		//TIM2->CR1 |= TIM_CR1_CEN;	//start
+		// }
+		bool btn_state = !(GPIOC->IDR & (1 << 15U));
 		if (btn_state && !btn_prev_state) {
-			if (tim2_turned_on) {
+			if (TIM2->CR1 & TIM_CR1_CEN) {
 				TIM2->CR1 &= ~TIM_CR1_CEN;	//stop
 			} else {
 				TIM2->CR1 |= TIM_CR1_CEN;	//start
 			}
-			tim2_turned_on = !tim2_turned_on;
 		}
 		btn_prev_state = btn_state;
 		delay_us(10000); // 10ms
 	}
 	#endif
-	#if 1
+	#if 0
 
 	typedef struct 
 	{
-		uint32_t GPIOx_ODR;
+		GPIO_TypeDef* gpio_x;
 		uint32_t pin_num
 	} LED_pin;
 	
-	LED_pin LED_pins[] = {{GPIOA->ODR, GPIO_ODR_ODR5}, {GPIOB->ODR, GPIO_ODR_ODR0}, {GPIOB->ODR, GPIO_ODR_ODR10}}; 
+	LED_pin LED_pins[] = {{GPIOA, GPIO_ODR_ODR5}, {GPIOB, GPIO_ODR_ODR0}, {GPIOB, GPIO_ODR_ODR10}}; 
 
 	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
-	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
-	RCC->APB2ENR |= RCC_APB2ENR_IOPBEN;
+35999	RCC->APB2ENR |= RCC_APB2ENR_IOPBEN;
 
 	GPIOA->CRL = GPIOA->CRL & ~(GPIO_CRL_CNF5 | GPIO_CRL_MODE5) | GPIO_CRL_MODE5_0;
-	LED_pins[0].GPIOx_ODR &= ~LED_pins[0].pin_num;
+	//LED_pins[0].gpio_x->ODR |= LED_pins[0].pin_num;
 	GPIOB->CRL = GPIOB->CRL & ~(GPIO_CRL_CNF0 | GPIO_CRL_MODE0) | GPIO_CRL_MODE0_0;
 	GPIOB->CRH = GPIOB->CRH & ~(GPIO_CRH_CNF10 | GPIO_CRH_MODE10) | GPIO_CRH_MODE10_0;
 
@@ -143,13 +139,23 @@ int __attribute((noreturn)) main(void) {
 
 	uint8_t active_led = 0;
 	uint8_t i = 0;
+	bool LED_active = false;
     while (1) {
-	    // if (!(GPIOA->IDR & 1)) {
-		// 	LED_pins[i].GPIOx_ODR &= ~LED_pins[i].pin_num;
-		// 	i = (i++) % 3;
-		// 	LED_pins[i].GPIOx_ODR |= LED_pins[i].pin_num;
-		// 	delay(1000);
-        // }
+	    if (!(GPIOA->IDR & 1)) {
+			LED_pins[i].gpio_x->ODR &= ~LED_pins[i].pin_num;
+			i = (i++) % 3;
+			LED_pins[i].gpio_x->ODR |= LED_pins[i].pin_num;
+			delay_us(100000);
+        }
+		if (!(GPIOA->IDR & GPIO_ODR_ODR15)) {
+			if (LED_active) {
+				LED_pins[i].gpio_x->ODR &= ~LED_pins[i].pin_num;
+			} else {
+				LED_pins[i].gpio_x->ODR |= LED_pins[i].pin_num;
+			}
+			LED_active =! LED_active;GPIO_ODR_ODR13
+			delay_us(1000);
+        }
 		//  if (!(GPIOA->IDR & (1<<14U))) {
 		// 	GPIOB->ODR &= ~active_led;
 		// 	active_led -= 5;
@@ -162,7 +168,8 @@ int __attribute((noreturn)) main(void) {
 void TIM2_IRQHandler(void)
 {
 	if (TIM2->SR & TIM_SR_UIF) { // SR - status register
-		GPIOC->BSRR = ((GPIOC->ODR & GPIO_ODR_ODR13) << 16) | (~GPIOC->ODR & GPIO_ODR_ODR13);
+		uint16_t gpio = GPIOC->ODR;
+		GPIOC->ODR = ~(gpio & GPIO_ODR_ODR13) & GPIO_ODR_ODR13;
 		TIM2->SR &= ~TIM_SR_UIF;
 	}
 }

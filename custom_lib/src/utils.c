@@ -29,7 +29,7 @@ void delay_us(uint32_t us) {
             "b _loop\r\n"           //1+P (pipleline)
         "_exit:\r\n"
         "pop {r0}\r\n"
-        :: "r" (9 * us)             //for 72 Vhz
+        :: "r" (9 * us)             //for 72 Mhz
     );
 }
 
