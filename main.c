@@ -63,7 +63,7 @@ int __attribute((noreturn)) main(void) {
 		}
     }
 	#endif
-	#if 1
+	#if 0
 	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
 	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
 	RCC->APB2ENR |= RCC_APB2ENR_IOPCEN;
@@ -162,6 +162,38 @@ int __attribute((noreturn)) main(void) {
 		// 	GPIOB->ODR |= active_led % 10;
 		// }
     }
+	#endif
+	#if 1
+	SPI1_Init();
+	GPIOA->ODR &= ~GPIO_ODR_ODR4; // CS=0
+	GPIOA->ODR &= ~GPIO_ODR_ODR2; // RESET=0 - аппаратный сброс
+	delay(10000); // Wait for the power stabilized
+	GPIOA->ODR |= GPIO_ODR_ODR2; // RESET=1
+	delay(1000); // Wait <1ms
+	cmd(0xA2); //LCD Drive set 1/9 bias
+	cmd(0xA0); // RAM Address SEG Output normal
+	cmd(0xC8); // Common output mode selection
+	cmd(0x28 | 0x07); // Power control mode
+	cmd(0x20 | 0x05); // Voltage regulator
+	cmd(0xA6); // Normal color, A7 = inverse color
+	cmd(0xAF); // Display on
+
+	
+	for (int j = 0; j < 66; j++)
+	{
+		cmd(0xB2 | j);
+		cmd(0x40 | 0x00);
+		for (int i = 0; i < 133; i++)
+			dat(0x00);
+		delay(10000);
+	}
+
+
+	while (1)
+	{
+		__NOP();
+	}
+
 	#endif
 }
 
