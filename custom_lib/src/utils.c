@@ -87,6 +87,8 @@ void SPI1_Init(void)
   SPI1->CR1 &= ~SPI_CR1_CRCEN; // Disable CRC
   SPI1->CR1 |= SPI_CR1_SSM; // Программное управление SS
   SPI1->CR1 |= SPI_CR1_SSI; // SS в высоком состоянии
+  //SPI1->CR1 &= ~SPI_CR1_BR; // Clear BR[2:0] bits
+  //SPI1->CR1 |= SPI_CR1_BR_2; // BR[2:0]=100, Скорость передачи: F_PCLK/32
   SPI1->CR1 |= SPI_CR1_BR;
   SPI1->CR1 |= SPI_CR1_MSTR; // Режим Master (ведущий)
   SPI1->CR1 &= ~(SPI_CR1_CPOL | SPI_CR1_CPHA); //Режим работы SPI: CPOL=0 CPHA=0
@@ -96,34 +98,65 @@ void SPI1_Init(void)
 
 void SPI1_Write(uint8_t data)
 {
-    //Ждем, пока не освободится буфер передатчика
-    while(!(SPI1->SR & SPI_SR_TXE));
-    //заполняем буфер передатчика
-    SPI1->DR = data;
+  //Ждем, пока не освободится буфер передатчика
+  while(!(SPI1->SR & SPI_SR_TXE));
+  
+  //заполняем буфер передатчика
+  SPI1->DR = data;
+}
+
+int8_t SPI1_Read(void)
+{
+  SPI1->DR = 0; //запускаем обмен
+  
+  //Ждем, пока не появится новое значение 
+  //в буфере приемника
+  while(!(SPI1->SR & SPI_SR_RXNE));
+  
+  //возвращаем значение буфера приемника
+  return SPI1->DR;
+}
+
+void cmd(uint8_t data) // Отправка команды
+{ 
+    GPIOA->ODR &= ~GPIO_ODR_ODR3; // A0=0 --a command is being sent
+    GPIOA->ODR &= ~GPIO_ODR_ODR4; // CS=0
+    SPI1_Write(data);
+    while (SPI1->SR & SPI_SR_BSY);
+    GPIOA->ODR |= GPIO_ODR_ODR4; // CS=1
+}
+
+void dat(uint8_t data) // Отправка данных
+{ 
+    GPIOA->ODR |= GPIO_ODR_ODR3; // A0=1 --data is being sent
+    GPIOA->ODR &= ~GPIO_ODR_ODR4; // CS=0
+    //delay(1000);
+    SPI1_Write(data);
+    while (SPI1->SR & SPI_SR_BSY);
+    GPIOA->ODR |= GPIO_ODR_ODR4; // CS=1
+}
+
+
+void DrawChess()
+{
+  uint8_t i,j,k; // i=row number, j=col number, k=cycle inside a square
+  uint8_t val = 0x00; // Color 0x00=White strip, 0xFF=black strip
+  for(i=0; i<=7; i++){
+    cmd(0xB0 | i); // Set Page i (Pages 0x00...0x0F)
+    val = ~ val;
+    for(j=0; j<=15; j++){
+      for(k=0; k<=7; k++) dat(val);
+      val = ~val;
     }
-
-    uint8_t SPI1_Read(void)
-    {
-    SPI1->DR = 0; //запускаем обмен
-    //Ждем, пока не появится новое значение
-    //в буфере приемника
-    while(!(SPI1->SR & SPI_SR_RXNE));
-    //возвращаем значение буфера приемника
-    return SPI1->DR;
+    cmd(0xEE);
+  }
 }
 
-void cmd(uint8_t data){ // Отправка команды
-	GPIOA->ODR &= ~GPIO_ODR_ODR3; // A0=0 --указание на то, что отправляем команду
-	GPIOA->ODR &= ~GPIO_ODR_ODR4; // CS=0 – указание дисплею, что данные адресованы ему
-	delay(1000);
-	SPI1_Write(data);
-	GPIOA->ODR |= GPIO_ODR_ODR4; // CS=1 – окончание передачи данных
-}
-
-void dat(uint8_t data){ // Отправка данных
-	GPIOA->ODR |= GPIO_ODR_ODR3; // A0=1 --указание на то, что отправляем данные
-	GPIOA->ODR &= ~GPIO_ODR_ODR4; // CS=0 – указание дисплею, что данные адресованы ему
-	delay(1000);
-	SPI1_Write(data);
-	GPIOA->ODR |= GPIO_ODR_ODR4; // CS=1 – окончание передачи данных
+void draw_point(uint8_t x, uint8_t y) // x in [0..63] and y in [0..127] 
+{
+  uint8_t page_addr = (x >> 8) & 0x07; // % garantees page_addr in [0..7]
+  cmd(0xB0 | page_addr); // Set page_address (0x00..0x0F)
+  cmd(y & 0x0F); //Set column address LSB
+  cmd(0x10 | (y >> 4));
+  dat(1 << (x % 8));
 }

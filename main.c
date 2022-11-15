@@ -2,6 +2,9 @@
 #include <utils.h>
 #include <stm32f10x.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+//#include <stdlib.h>
 
 #define min(a,b) ((a) < (b) ? (a) : (b))
 
@@ -54,7 +57,9 @@ int __attribute((noreturn)) main(void) {
 			buttonPrevState = btnNewState;
 		}
 		if (ledPhase == 0) {
-			ledPhase = ledPeriod;
+			ledPhase = ledPeriod	// for (int i = 0; i < 64; i++)
+	// 	for (int j = 0; j < 128; j++)
+	// 		draw_point(i, j);;
 			
 			if (ledEnabled) {
 				GPIOC->BSRR = ((GPIOC->ODR & GPIO_ODR_ODR13) << 16) | ( ~GPIOC->ODR & GPIO_ODR_ODR13);
@@ -73,7 +78,9 @@ int __attribute((noreturn)) main(void) {
 
 	GPIOA->CRH = GPIOA->CRH & ~(GPIO_CRH_CNF13 | GPIO_CRH_MODE13) | GPIO_CRH_MODE13_0; //LED pin
 
-	GPIOC->CRH = GPIOC->CRH & ~(GPIO_CRH_CNF14 | GPIO_CRH_MODE14) | GPIO_CRH_MODE14_1;
+	GPIOC->CRH = GPIOC->CRH & ~(	// for (int i = 0; i < 64; i++)
+	// 	for (int j = 0; j < 128; j++)
+	// 		draw_point(i, j);GPIO_CRH_CNF14 | GPIO_CRH_MODE14) | GPIO_CRH_MODE14_1;
     GPIOC->ODR |= GPIO_ODR_ODR14; //enable PC14 Pull-up (for MID)
 
 	GPIOC->CRH = GPIOC->CRH & ~(GPIO_CRH_CNF15 | GPIO_CRH_MODE15) | GPIO_CRH_MODE15_1;
@@ -164,44 +171,65 @@ int __attribute((noreturn)) main(void) {
     }
 	#endif
 	#if 1
+	uint8_t LCD_Buff[8][128];
+	// Enable clock for GPIOC
+	RCC->APB2ENR |= RCC_APB2ENR_IOPCEN;
+	// Enable PC13 push-pull mode
+	GPIOC->CRH &= ~GPIO_CRH_CNF13; //clear cnf bits
+	GPIOC->CRH |= GPIO_CRH_MODE13_0; //Max speed = 10Mhz
+	GPIOB->CRH &= ~GPIO_CRH_CNF11; //clear cnf bits
+	GPIOB->CRH |= GPIO_CRH_MODE11_0; //Max speed = 10Mhz
+
 	SPI1_Init();
 	GPIOA->ODR &= ~GPIO_ODR_ODR4; // CS=0
-	GPIOA->ODR &= ~GPIO_ODR_ODR2; // RESET=0 - аппаратный сброс
+	GPIOA->ODR &= ~GPIO_ODR_ODR2; // RESET=0
 	delay(10000); // Wait for the power stabilized
 	GPIOA->ODR |= GPIO_ODR_ODR2; // RESET=1
-	delay(1000); // Wait <1ms
+	delay(1000);
+
 	cmd(0xA2); //LCD Drive set 1/9 bias
 	cmd(0xA0); // RAM Address SEG Output normal
-	cmd(0xC8); // Common output mode selection
+	cmd(0xC8); // Common outout mode selection
 	cmd(0x28 | 0x07); // Power control mode
 	cmd(0x20 | 0x05); // Voltage regulator
 	cmd(0xA6); // Normal color, A7 = inverse color
-	cmd(0xAF); // Display on
-
-	
-	for (int j = 0; j < 66; j++)
-	{
-		cmd(0xB2 | j);
-		cmd(0x40 | 0x00);
-		for (int i = 0; i < 133; i++)
-			dat(0x00);
-		delay(10000);
+	cmd(0xAF); // Display onlcd
+	cmd(0x40 | 0x00); // Set start line address (Lines 0x00...0x3F)
+	//memset(LCD_Buff, 0, sizeof(LCD_Buff));
+	for(int k=0; k<=7; k++){ // Clear DRAM
+		cmd(0xB0 | k); // Set Page 0 (Pages 0x00...0x0F)
+		for(int i=0; i<=127; i++)
+		dat(0x00);
+		cmd(0xEE); // End writing to the page, return the page address back
 	}
 
+	// Setting the page address:
+	//cmd(0xB0 | 0x00); // Set Page 0 (Pages 0x00...0x0F)
+	//
+	// Setting the line address:
+	//cmd(0x10 | 0x00); // Set column address MSB (0x00...0x0F)
+	//cmd(0x00); // Set column address LSB (0x00...0x0F)
 
-	while (1)
-	{
-		__NOP();
-	}
+	// for (int i = 0; i < 64; i++)
+	// 	for (int j = 0; j < 128; j++)
+	// 		draw_point(i, j);
 
+	DrawChess();
+  
+    while (1) { // LED blinking
+	    GPIOC->ODR |= (1U<<13U); //U -- unsigned suffix (to avoid syntax warnings in IDE)
+		delay(1000000);
+	    GPIOC->ODR &= ~(1U<<13U);
+	    delay(1000000);
+    }
 	#endif
 }
 
-void TIM2_IRQHandler(void)
-{
-	if (TIM2->SR & TIM_SR_UIF) { // SR - status register
-		uint16_t gpio = GPIOC->ODR;
-		GPIOC->ODR = ~(gpio & GPIO_ODR_ODR13) & GPIO_ODR_ODR13;
-		TIM2->SR &= ~TIM_SR_UIF;
-	}
-}
+// void TIM2_IRQHandler(void)
+// {
+// 	if (TIM2->SR & TIM_SR_UIF) { // SR - status register
+// 		uint16_t gpio = GPIOC->ODR;
+// 		GPIOC->ODR = ~(gpio & GPIO_ODR_ODR13) & GPIO_ODR_ODR13;
+// 		TIM2->SR &= ~TIM_SR_UIF;
+// 	}
+// }

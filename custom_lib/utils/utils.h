@@ -7,3 +7,5 @@ void SPI1_Init(void);
 void SPI1_Write(uint8_t data);
 void cmd(uint8_t data); // Отправка команды
 void dat(uint8_t data); // Отправка данных
+void DrawChess();
+void draw_point(uint8_t x, uint8_t y);
