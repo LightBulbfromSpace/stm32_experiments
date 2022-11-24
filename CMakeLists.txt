@@ -12,6 +12,9 @@ set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS)
 
 set(TARGET_NAME ${PROJECT_NAME})
 
+# Add libopencm3
+
+
 # Set compiler and utility path (actual if arm-none-eabi is not in PATH env variable)
 set(ARM_TOOLCHAIN_PATH $ENV{ARM_TOOLCHAIN_PATH})
 set(CMAKE_C_COMPILER ${ARM_TOOLCHAIN_PATH}arm-none-eabi-gcc)
