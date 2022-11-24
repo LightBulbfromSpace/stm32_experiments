@@ -4,7 +4,10 @@
 #include <utils.h>
 #include <spi.h>
 
-uint8_t LCD_Buf[8][128];
+#define LCD_HIGHT 8
+#define LCD_WIDTH 128
+
+uint8_t LCD_Buf[LCD_HIGHT][LCD_WIDTH];
 
 /*`````````````````````````````````````````````````````````````````````````````````````````````````
 *   Font definition -- Char cell: 5 x 8 pixels -- PROPORTIONAL spacing.
@@ -23,6 +26,8 @@ uint8_t LCD_Buf[8][128];
 *          Special cases, e.g. 'j', '[', '{', etc, are handled by LCD_PutChar#().
 *
 */
+
+#define FONT_WIDTH 5
 const uint8_t font[] = {
   0x0, 0x0, 0x0, 0x0, 0x0,       // Ascii 0
   0x7C, 0xDA, 0xF2, 0xDA, 0x7C,  //ASC(01)
@@ -407,15 +412,42 @@ void lcdbufDrawLine(int x0, int y0, int x1, int y1) {
 	}
 }
 
+void set_page(uint8_t page_addr)
+{
+    cmd(0xB0 | page_addr & 0x07);
+}
+
+void set_column(uint8_t col_addr)
+{
+    cmd(col_addr & 0x0F);
+	cmd(0x10 | (col_addr >> 4));
+}
+
 void PutChar(char x){
   uint8_t *pData = (uint8_t *) &font[x * 5];
-  dat(0x00); // Spacing
+  //dat(0x00); // Spacing
   for(int i=0; i<5; i++ ){ dat( bitrev(*pData) ); pData++; }
   dat(0x00); // Spacing
 }
 
-void PutString(char pChar[], uint8_t strlen){
+void PutString(const char pChar[], uint8_t strlen, uint8_t page, uint8_t column){
+  //uint8_t remainded_chars = (LCD_WIDTH - column) / (FONT_WIDTH + 1);
+  //uint8_t pages = (strlen - remainded_chars) / (LCD_WIDTH / (FONT_WIDTH + 1));
+
+  set_column(column);
+  set_page(page);
+
+  uint8_t col_num = column;
+
   for(int i=0; i<strlen; i++){
+    if (col_num + FONT_WIDTH > LCD_WIDTH)
+    {
+      col_num = column;
+      page++;
+      set_column(column);
+      set_page(page);
+    }
+      col_num += FONT_WIDTH + 1;
       PutChar(pChar[i]);
   }
 }
@@ -480,10 +512,11 @@ int main(void) {
   //DrawChess();
   
   // String writing example
-  cmd(0xB0 | 0x00); // Set Page ''pagenumber''
-  cmd(0b00000000); // Write y LSB
-  cmd(0b00010000); // Write y MSB
-  PutString("Irons and video games", 21);
+  //cmd(0xB0 | 0x00); // Set Page ''pagenumber''
+  //cmd(0b00000000); // Write y LSB
+  //cmd(0b00010000); // Write y MSB
+  const char* s = "Lazy quick fox jumped over lazy dog";
+  PutString(s, strlen(s), 1, 10);
   
   //delay(10000000);
   //cmd(0x40 | 0x01); // Set start line address (Lines 0x00...0x3F)
